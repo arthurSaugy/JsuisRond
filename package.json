@@ -1,0 +1,16 @@
+{
+  "name": "cercle-vicieux",
+  "version": "1.0.0",
+  "description": "Jeu multijoueur : garde ta souris dans le cercle malgré les bombes, le vent et le reste.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "license": "MIT"
+}

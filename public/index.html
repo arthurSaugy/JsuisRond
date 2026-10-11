@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cercle Vicieux</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rubik+Mono+One&family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <canvas id="cv"></canvas>
+
+  <!-- HUD en jeu -->
+  <div id="hud" class="hidden">
+    <div class="hud-top">
+      <div class="hud-box" id="hud-time">0:00</div>
+      <div id="toasts"></div>
+      <div class="hud-box" id="hud-alive"></div>
+    </div>
+    <div id="hud-events"></div>
+    <div id="hud-hint">Échap : libérer la souris · M : son</div>
+  </div>
+
+  <div id="center-msg" class="hidden"></div>
+
+  <!-- Menu principal -->
+  <section id="menu" class="screen">
+    <div class="panel menu-panel">
+      <h1 class="logo">Cercle<br><span>Vicieux</span></h1>
+      <p class="tagline">Garde ta souris dans le cercle. Les bombes, le vent et le reste vont tout faire pour l'en sortir.</p>
+      <label class="field">
+        <span>Pseudo</span>
+        <input id="name" maxlength="16" placeholder="Ton pseudo" autocomplete="off">
+      </label>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="solo">Solo</button>
+        <button class="tab" data-tab="bots">Contre des bots</button>
+        <button class="tab" data-tab="online">En ligne</button>
+      </div>
+
+      <div class="tab-body" data-body="solo">
+        <p class="muted">Survis le plus longtemps possible. <span id="best"></span></p>
+        <div class="settings" id="settings-solo"></div>
+        <button class="btn primary" id="play-solo">Jouer</button>
+      </div>
+
+      <div class="tab-body hidden" data-body="bots">
+        <div class="settings" id="settings-bots"></div>
+        <button class="btn primary" id="play-bots">Jouer</button>
+      </div>
+
+      <div class="tab-body hidden" data-body="online">
+        <p class="muted">Chacun joue sur son ordinateur, avec sa souris.</p>
+        <div class="row">
+          <button class="btn primary" id="create-room">Créer un salon</button>
+        </div>
+        <div class="row">
+          <input id="join-code" maxlength="4" placeholder="CODE" autocomplete="off" class="code-input">
+          <button class="btn" id="join-room">Rejoindre</button>
+        </div>
+        <details class="adv">
+          <summary>Serveur</summary>
+          <label class="field"><span>Adresse WebSocket</span><input id="server-url" autocomplete="off"></label>
+        </details>
+        <p class="error" id="online-error"></p>
+      </div>
+
+      <details class="adv controls">
+        <summary>Contrôles</summary>
+        <label class="field inline">
+          <span>Sensibilité</span>
+          <input type="range" id="sens" min="0.4" max="2.5" step="0.05" value="1">
+          <output id="sens-out">1.00</output>
+        </label>
+        <label class="check"><input type="checkbox" id="abs-mode"> Mode curseur libre (le pion suit ta souris au lieu de la capturer)</label>
+      </details>
+    </div>
+  </section>
+
+  <!-- Salon en ligne -->
+  <section id="lobby" class="screen hidden">
+    <div class="panel lobby-panel">
+      <div class="lobby-head">
+        <div>
+          <div class="muted small">Code du salon</div>
+          <div class="room-code" id="room-code">----</div>
+        </div>
+        <button class="btn ghost" id="copy-link">Copier le lien</button>
+      </div>
+      <div class="lobby-cols">
+        <div>
+          <h3>Joueurs</h3>
+          <ul id="player-list"></ul>
+        </div>
+        <div>
+          <h3>Réglages <span class="muted small" id="host-note"></span></h3>
+          <div class="settings" id="settings-online"></div>
+        </div>
+      </div>
+      <div class="row end">
+        <button class="btn ghost" id="leave-room">Quitter</button>
+        <button class="btn primary" id="start-room">Lancer la partie</button>
+      </div>
+      <p class="error" id="lobby-error"></p>
+    </div>
+  </section>
+
+  <!-- Résultats -->
+  <section id="results" class="screen hidden">
+    <div class="panel results-panel">
+      <h2 id="res-title">Partie terminée</h2>
+      <p class="muted" id="res-sub"></p>
+      <ol id="res-list"></ol>
+      <div class="row end">
+        <button class="btn ghost" id="res-menu">Menu</button>
+        <button class="btn primary" id="res-again">Rejouer</button>
+      </div>
+    </div>
+  </section>
+
+  <button id="mute" class="icon-btn" title="Son (M)" aria-label="Couper le son">♪</button>
+
+  <script src="engine.js"></script>
+  <script src="renderer.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
