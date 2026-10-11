@@ -1,7 +1,7 @@
 /* Cercle Vicieux — interface, sessions locale et en ligne, entrées souris, sons. */
 (function () {
   'use strict';
-  const { Game, COLORS, MAX_SPEED, defaultSettings, sanitizeSettings, BOT_LEVELS } = Engine;
+  const { Game, COLORS, INPUT_MAX_SPEED, defaultSettings, sanitizeSettings, BOT_LEVELS } = Engine;
   const $ = (id) => document.getElementById(id);
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -138,7 +138,20 @@
   const renderer = Renderer.create(cv);
   window.addEventListener('resize', () => renderer.resize());
 
-  const input = { locked: false, abs: store.get('abs', false), sens: store.get('sens', 1), ax: 0, ay: 0, mx: innerWidth / 2, my: innerHeight / 2, lockFailed: false };
+  const input = { locked: false, abs: store.get('abs', false), sens: store.get('sens', 1), inertia: store.get('inertia', 0.5),
+    ax: 0, ay: 0, debtX: 0, debtY: 0, vx: 0, vy: 0, mx: innerWidth / 2, my: innerHeight / 2, lockFailed: false };
+  function clearInput() { input.ax = input.ay = 0; input.debtX = input.debtY = 0; input.vx = input.vy = 0; }
+  $('inertia').value = input.inertia; $('inertia-out').textContent = Math.round(input.inertia * 100) + ' %';
+  $('inertia').addEventListener('input', (e) => {
+    input.inertia = Number(e.target.value); store.set('inertia', input.inertia);
+    $('inertia-out').textContent = Math.round(input.inertia * 100) + ' %';
+  });
+  // Le pion est une masse tirée par un ressort vers ta souris (amorti critique : pas de dépassement).
+  // Raideur w : retard ≈ 2/w. 0 % : aucun retard ; 50 % : ~70 ms ; 100 % : ~200 ms, très lourd.
+  // Le système est linéaire : un geste 2× plus rapide fait aller le pion 2× plus vite.
+  // La « force » ne se sent que si l'on va vite, car le retard en distance = vitesse × délai.
+  function stiffness() { return input.inertia <= 0.001 ? Infinity : 80 * Math.pow(0.125, input.inertia); }
+  const DEBT_MAX = 800; // garde-fou : au-delà, l'excédent est perdu
   $('abs-mode').checked = input.abs;
   $('abs-mode').addEventListener('change', (e) => { input.abs = e.target.checked; store.set('abs', input.abs); });
   $('sens').value = input.sens; $('sens-out').textContent = Number(input.sens).toFixed(2);
@@ -190,7 +203,7 @@
     input.skipNext = input.locked;
     if (!input.locked) input.unlockedAt = performance.now();
     document.body.classList.toggle('locked', input.locked);
-    input.ax = input.ay = 0;
+    clearInput();
   });
   document.addEventListener('mousemove', (e) => {
     if (input.locked) {
@@ -223,16 +236,49 @@
         tg = { x: 2 * v.z.x - tg.x, y: 2 * v.z.y - tg.y };
         dx = -(tg.x - pos.x); dy = -(tg.y - pos.y);
       }
-      const max = MAX_SPEED * Math.min(dt, 0.05);
-      const l = Math.hypot(dx, dy);
-      if (l > max) { dx *= max / l; dy *= max / l; }
-      return { x: dx, y: dy };
+      return follow(dx, dy, dt);
     }
-    if (!input.locked) { input.ax = input.ay = 0; return { x: 0, y: 0 }; }
+    if (!input.locked) { clearInput(); return { x: 0, y: 0 }; }
+    // le mouvement de la souris n'est jamais jeté : il s'ajoute à une réserve que le pion rattrape
     const k = input.sens / renderer.scale;
-    const d = { x: input.ax * k, y: input.ay * k };
+    input.debtX += input.ax * k; input.debtY += input.ay * k;
     input.ax = input.ay = 0;
+    const dl = Math.hypot(input.debtX, input.debtY);
+    if (dl > DEBT_MAX) { input.debtX *= DEBT_MAX / dl; input.debtY *= DEBT_MAX / dl; }
+    const d = follow(input.debtX, input.debtY, dt);
+    input.debtX -= d.x; input.debtY -= d.y;
     return d;
+  }
+  /**
+   * Déplacement du pion ce frame vers une cible située à (ex,ey) de lui.
+   * Ressort-amortisseur critique résolu exactement (stable quel que soit dt) :
+   *   x(t) = (x0 + (v0 + w·x0)·t)·e^(-wt),  v(t) = (v0 - w·(v0 + w·x0)·t)·e^(-wt)
+   * avec x = position du pion par rapport à la cible.
+   */
+  function follow(ex, ey, dt) {
+    const w = stiffness();
+    let mx, my;
+    if (w === Infinity) { mx = ex; my = ey; input.vx = input.vy = 0; }
+    else {
+      const e = Math.exp(-w * dt);
+      const step = (x0, v0) => {
+        const c = v0 + w * x0;
+        return [(x0 + c * dt) * e, (v0 - w * c * dt) * e];
+      };
+      const [x1, v1] = step(-ex, input.vx);
+      const [y1, w1] = step(-ey, input.vy);
+      mx = x1 + ex; my = y1 + ey;
+      input.vx = v1; input.vy = w1;
+    }
+    // garde-fou très haut (anti-triche côté serveur) : un geste normal ne l'atteint pas
+    const max = INPUT_MAX_SPEED * Math.min(dt, 0.05);
+    const l = Math.hypot(mx, my);
+    if (l > max) {
+      mx *= max / l; my *= max / l;
+      const v = Math.hypot(input.vx, input.vy), vm = INPUT_MAX_SPEED;
+      if (v > vm) { input.vx *= vm / v; input.vy *= vm / v; }
+    }
+    return { x: mx, y: my };
   }
 
   // ---------- session locale (solo / bots) ----------
@@ -258,7 +304,8 @@
     frame(dt) {
       // en mode capture, le jeu solo se met en pause quand la souris est libérée
       this.paused = !useAbs() && !input.locked && this.game.phase !== 'over' && this.me().alive;
-      if (this.paused) { input.ax = input.ay = 0; return; }
+      if (this.paused) { clearInput(); return; }
+      if (this.game.phase !== 'playing' || !this.me().alive) clearInput();
       const me = this.me();
       const d = takeInput(me, this.v, dt);
       this.game.applyInput('me', d.x, d.y);
@@ -325,10 +372,10 @@
       const L = this.latest();
       const decay = Math.exp(-14 * dt);
       this.corr.x *= decay; this.corr.y *= decay;
-      if (!L || !this.pred || L.v.ph !== 'playing' || !this.meAlive()) { input.ax = input.ay = 0; return; }
+      if (!L || !this.pred || L.v.ph !== 'playing' || !this.meAlive()) { clearInput(); return; }
       const disp = { x: this.pred.x + this.corr.x, y: this.pred.y + this.corr.y };
       const d = takeInput(disp, L.v, dt);
-      const max = MAX_SPEED * Math.min(dt, 0.05) * 1.05;
+      const max = INPUT_MAX_SPEED * Math.min(dt, 0.05) * 1.05;
       const l = Math.hypot(d.x, d.y);
       if (l > max) { d.x *= max / l; d.y *= max / l; }
       if (d.x === 0 && d.y === 0) return;
@@ -597,6 +644,7 @@
 
   let round = null;
   function newRound() {
+    clearInput();
     round = { seenAnn: new Set(), lastCount: null, bombs: new Set(), ex: new Set(), prev: {}, myHit: null,
       shake: 0, resultsShown: false, overAt: null, deadToast: false, hudAt: 0 };
     $('toasts').innerHTML = '';

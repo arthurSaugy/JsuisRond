@@ -13,7 +13,8 @@
   const R0 = 450;            // rayon de l'arène et de la zone de départ
   const PR = 12;             // rayon d'un joueur
   const MIN_R = 80;          // rayon minimal de la zone
-  const MAX_SPEED = 760;     // vitesse max que la souris peut donner (unités/s)
+  const MAX_SPEED = 760;     // vitesse de déplacement des bots (unités/s)
+  const INPUT_MAX_SPEED = 3200; // garde-fou anti-triche pour la souris d'un joueur (unités/s)
   const FRICTION = 4.2;      // amortissement des poussées (1/s)
   const COUNTDOWN = 3;
   const TAU = Math.PI * 2;
@@ -190,7 +191,7 @@
       if (this.s.collisions) this.collide(t);
       this.checkEliminations(t);
       // le budget se recharge ici : il plafonne le mouvement de souris du prochain tick
-      for (const p of this.players) p.budget = Math.min(p.budget + MAX_SPEED * dt, MAX_SPEED * 0.12);
+      for (const p of this.players) p.budget = Math.min(p.budget + INPUT_MAX_SPEED * dt, INPUT_MAX_SPEED * 0.08);
     }
 
     updateShrink(t) {
@@ -583,7 +584,7 @@
   }
 
   return {
-    R0, PR, MIN_R, MAX_SPEED, COUNTDOWN, COLORS, PACE, EVENTS, BOT_LEVELS,
+    R0, PR, MIN_R, MAX_SPEED, INPUT_MAX_SPEED, COUNTDOWN, COLORS, PACE, EVENTS, BOT_LEVELS,
     defaultSettings, sanitizeSettings, Game,
   };
 });

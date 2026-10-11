@@ -35,9 +35,10 @@ Quelqu'un qui arrive pendant une manche la regarde et joue la suivante. Un joueu
 - **Échap** : libère la souris (le solo se met en pause).
 - **M** : coupe ou remet le son.
 - **Contrôles → Sensibilité** : 1 = un pixel de souris donne un pixel à l'écran.
+- **Contrôles → Inertie** : le poids du pion. À 0 % il colle à la souris ; à 50 % (par défaut) il a ~70 ms de retard ; à 100 % ~200 ms, très lourd.
 - **Contrôles → Mode curseur libre** : le pion suit ton curseur au lieu de le capturer. Utile si le navigateur refuse la capture (le jeu bascule tout seul dans ce mode après deux refus).
 
-La vitesse de la souris est plafonnée : un coup de poignet ne téléporte pas le pion, il faut lutter contre les poussées.
+Le pion est une masse tirée par un ressort vers ta souris. Plus tu vas vite, plus tu sens qu'il traîne derrière, mais un geste rapide l'amène quand même plus vite à destination qu'un geste lent. Aucun mouvement de souris n'est perdu.
 
 ## Les événements
 
@@ -116,7 +117,8 @@ public/client.js   interface, modes solo/bots/en ligne, souris, sons
 - **Un seul moteur.** `engine.js` contient toute la logique (zone, événements, physique, collisions, éliminations, IA des bots). En solo il tourne dans le navigateur ; en ligne il tourne sur le serveur.
 - **Serveur autoritaire.** Le serveur simule à 60 Hz et envoie l'état à 30 Hz. Les clients n'envoient que leurs mouvements de souris (numérotés).
 - **Prédiction côté client.** Ton pion bouge tout de suite : le client applique ses propres mouvements sans attendre le serveur, puis se recale sur chaque état reçu en rejouant les mouvements pas encore confirmés. Les autres joueurs sont affichés environ 100 ms dans le passé et interpolés, pour rester fluides.
-- **Plafond de vitesse.** Chaque joueur a un « budget » de déplacement qui se recharge à 760 unités/s. Il limite la souris et empêche de tricher en envoyant de gros mouvements.
+- **Visée au ressort.** Côté client, les mouvements de souris s'accumulent dans une cible virtuelle. Le pion la suit comme une masse sur un ressort à amorti critique (résolu exactement, donc stable quel que soit le framerate). Le système est linéaire : le retard est le même en temps à toute vitesse, donc un geste deux fois plus rapide fait aller le pion deux fois plus vite. Le retard en distance (vitesse × délai) n'est perceptible qu'en allant vite, d'où la sensation de force.
+- **Garde-fou anti-triche.** Le serveur accorde à chaque joueur un « budget » de déplacement qui se recharge à 3200 unités/s, bien au-dessus d'un geste normal. Il empêche seulement d'envoyer des téléportations.
 - **Pointer Lock.** La souris est capturée pour lire ses mouvements relatifs : c'est ce qui permet au jeu de pousser « ta souris ».
 
 ### Ajouter un événement
